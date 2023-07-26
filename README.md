@@ -11,7 +11,7 @@ This GitHub repo contains all the resources you need in order to reproduce the d
 2. On top of Docker, do notice that the examples make use of `docker compose`. However, note that you must have **[Docker Compose]([url](https://docs.docker.com/compose/)https://docs.docker.com/compose/)** installed, rather than the old (no longer supported) `docker-compose` command-line. If you are using **Docker Desktop**, then you should be all set.
 3. The provided files are going to spin up 6 ScyllaDB nodes (3 in each cluster), a CDC replicator job, a stressor and the **[ScyllaDB Monitoring Stack](monitoring.docs.scylladb.com/)**
    - It is highly-recommended to run the material under a reasonable powerful laptop with at least 12 cores and with 16GB RAM
-   - Under Linux, configure the `fs.aio-max-nr` parameter to a high value with: `sudo sysctl -w fs.aio-max-nr=1000000000`
+   - Under Linux, configure the `fs.aio-max-nr` parameter to a high value with: `sudo sysctl -w fs.aio-max-nr=1000000000`. If you are running on a Mac and you end up hitting underlying VM limits, then you will have no choice but to either reduce the number of ScyllaDB containers by yourself, or to stick to an actual Linux VM.
    - The example was primarily tested under Linux and Mac OS X (including ARM64) installations. It might work on top of Windows, although you may find it easier to simply spin up a VM if that's your case.
    - The entire stack may require a fairly high amount of diskspace. Consider having at least 10G of storage room.
 
