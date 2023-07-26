@@ -1,0 +1,13 @@
+# List Scylla end points
+
+# An example with a single cluster and two DC
+- targets:
+       - cluster1-node1:9180
+  labels:
+       cluster: cluster
+       dc: dc1
+- targets:
+       - cluster2-node1:9180
+  labels:
+       cluster: cluster
+       dc: dc2

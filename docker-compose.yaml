@@ -1,0 +1,121 @@
+version: "3"
+
+services:
+  ###########################################################
+  # Definitions for cluster1
+  ###########################################################
+  cluster1-node1:
+    container_name: cluster1-node1
+    image: scylladb/scylla-enterprise:2022.2.11
+    restart: always
+    command: --seeds=cluster1-node1 --smp 4 --memory 4G --overprovisioned 1 --api-address 0.0.0.0
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -X GET --header 'Accept: application/json' 'http://localhost:10000/storage_service/native_transport'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ###########################################################
+  # Definitions for cluster2
+  ###########################################################
+  cluster2-node1:
+    container_name: cluster2-node1
+    image: scylladb/scylla-enterprise:2022.2.11
+    restart: always
+    command: --seeds=cluster2-node1 --smp 4 --memory 4G --overprovisioned 1 --api-address 0.0.0.0 --alternator-port=8000 --alternator-write-isolation=only_rmw_uses_lwt
+    ports:
+      - "8000:8000"
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -X GET --header 'Accept: application/json' 'http://localhost:10000/storage_service/native_transport'"]
+      interval: 30s 
+      timeout: 10s 
+      retries: 5
+
+  ###########################################################
+  # Stress 
+  ###########################################################
+  stress:
+    container_name: stress
+    image: scylladb/scylla-enterprise:2022.2.11
+    entrypoint: cassandra-stress
+    command: "user profile=file:///profile.yml no-warmup 'ops(insert=1)' duration=6h -rate threads=8 throttle=5000/s -node cluster1-node1"
+    networks:
+      - web
+    volumes:
+      - ${PWD}/profile.yml:/profile.yml
+    depends_on:
+      cluster1-node1:
+        condition: service_healthy
+
+  ###########################################################
+  # Replicator 
+  ###########################################################
+  replicator:
+    container_name: replicator
+    build:
+      dockerfile: ./replicator.dockerfile
+    networks:
+      - web
+    depends_on:
+      cluster2-node1:
+        condition: service_healthy
+  ###########################################################
+  # Monitoring
+  ###########################################################
+  alertmanager:
+    container_name: aalert
+    hostname: aalert
+    image: prom/alertmanager:v0.25.0
+    networks:
+      - web
+    ports:
+    - 9093:9093
+    volumes:
+    - ./prometheus/rule_config.yml:/etc/alertmanager/config.yml
+  grafana:
+    container_name: agraf
+    environment:
+    - GF_PANELS_DISABLE_SANITIZE_HTML=true
+    - GF_PATHS_PROVISIONING=/var/lib/grafana/provisioning
+    - GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=scylladb-scylla-datasource
+    # This is where you set Grafana security
+    - GF_AUTH_BASIC_ENABLED=false
+    - GF_AUTH_ANONYMOUS_ENABLED=true
+    - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    - GF_SECURITY_ADMIN_PASSWORD=admin
+    # To set your home dashboard uncomment the following line, set VERSION to be your current version
+    - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/ver_2022.2/scylla-overview.2022.2.json
+    image: grafana/grafana:9.5.5
+    networks:
+      - web
+    ports:
+    - 3000:3000
+    user: 1000:1000
+    volumes:
+    - ./grafana/build:/var/lib/grafana/dashboards
+    - ./grafana/plugins:/var/lib/grafana/plugins
+    - ./grafana/provisioning:/var/lib/grafana/provisioning
+  prometheus:
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    container_name: aprom
+    hostname: aprom
+    image: prom/prometheus:v2.44.0
+    networks:
+      - web
+    ports:
+    - 9090:9090
+    volumes:
+    - ./prometheus/build/prometheus.yml:/etc/prometheus/prometheus.yml
+    - ./prometheus/scylla_servers_single.yml:/etc/scylla.d/prometheus/scylla_servers.yml
+    - ./prometheus/prom_rules/:/etc/prometheus/prom_rules/
+    - ./prometheus/scylla_manager_servers.yml:/etc/scylla.d/prometheus/scylla_manager_servers.yml
+    - ./prometheus/scylla_servers_single.yml:/etc/scylla.d/prometheus/node_exporter_servers.yml
+
+networks:
+  web:
+
